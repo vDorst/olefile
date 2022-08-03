@@ -1,0 +1,18 @@
+[package]
+name = "olefile"
+version = "0.1.0"
+authors = ["Thomas BAILLEUX <thomas@bailleux.me>"]
+description = "Simple parser and reader for Microsoft Compound Document File."
+homepage = "https://github.com/zadlg/ole"
+readme = "README.md"
+keywords = ["ole", "compound", "document", "file", "parser"]
+categories = ["parser-implementations", "parsing"]
+license = "WTFPL"
+repository = "https://github.com/zadlg/ole.git"
+edition = "2021"
+
+[lib]
+name = "ole"
+
+[dependencies]
+thiserror = "1"
