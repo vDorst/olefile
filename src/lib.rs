@@ -39,7 +39,7 @@
 //! // We're going to extract a file from the OLE storage
 //! let entry = parser.iterate().next().unwrap();
 //! let mut slice = parser.get_entry_slice(entry).unwrap();
-//! let mut buffer = std::vec::Vec::<u8>::with_capacity(slice.len());
+//! let mut buffer = Vec::<u8>::with_capacity(slice.len());
 //! slice.read_to_end(&mut buffer);
 //!
 //! // Saves the extracted file

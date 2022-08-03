@@ -31,4 +31,3 @@ pub(crate) const CONTAINS_FAT_SECTORS: u32 = 0xFFFF_FFFD;
 pub(crate) const U32_SIZE: usize = std::mem::size_of::<u32>();
 
 pub(crate) const DIRECTORY_ENTRY_SIZE: usize = 128;
-

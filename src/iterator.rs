@@ -14,22 +14,24 @@
 //
 // Author: zadig <thomas chr(0x40) bailleux.me>
 
+use super::{ole::Reader, entry::Entry};
+
 /// Iterator for entries inside an OLE file.
 pub struct OLEIterator<'a> {
-    ole: &'a super::ole::Reader<'a>,
+    ole: &'a Reader<'a>,
     curr: usize,
 }
 
 impl<'a> OLEIterator<'a> {
-    pub(crate) fn new(ole: &'a super::ole::Reader) -> OLEIterator<'a> {
+    pub(crate) fn new(ole: &'a Reader) -> OLEIterator<'a> {
         OLEIterator { ole, curr: 0 }
     }
 }
 
 impl<'a> Iterator for OLEIterator<'a> {
-    type Item = &'a super::entry::Entry;
+    type Item = &'a Entry;
 
-    fn next(&mut self) -> Option<&'a super::entry::Entry> {
+    fn next(&mut self) -> Option<&'a Entry> {
         let entries = self.ole.entries.as_ref().unwrap();
         if self.curr < entries.len() {
             let entry = &entries[self.curr];

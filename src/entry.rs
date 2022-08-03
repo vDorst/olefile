@@ -14,9 +14,8 @@
 //
 // Author: zadig <thomas chr(0x40) bailleux.me>
 
-use std;
-
-use crate::constants;
+use super::{constants, error::Error, ole::Reader};
+use std::{fmt, string::String, vec::Vec};
 
 #[derive(Debug)]
 pub(crate) enum NodeColour {
@@ -25,17 +24,17 @@ pub(crate) enum NodeColour {
 }
 
 impl NodeColour {
-    fn from(t: u8) -> Result<NodeColour, super::error::Error> {
+    fn from(t: u8) -> Result<NodeColour, Error> {
         match t {
             0 => Ok(NodeColour::Red),
             1 => Ok(NodeColour::Black),
-            _ => Err(super::error::Error::NodeTypeUnknown),
+            _ => Err(Error::NodeTypeUnknown),
         }
     }
 }
 
-impl std::fmt::Display for NodeColour {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+impl fmt::Display for NodeColour {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match *self {
             NodeColour::Red => write!(f, "RED"),
             NodeColour::Black => write!(f, "BLACK"),
@@ -65,7 +64,7 @@ pub enum EntryType {
 }
 
 impl EntryType {
-    fn from(t: u8) -> Result<EntryType, super::error::Error> {
+    fn from(t: u8) -> Result<EntryType, Error> {
         match t {
             0 => Ok(EntryType::Empty),
             1 => Ok(EntryType::UserStorage),
@@ -73,13 +72,13 @@ impl EntryType {
             3 => Ok(EntryType::LockBytes),
             4 => Ok(EntryType::Property),
             5 => Ok(EntryType::RootStorage),
-            _ => Err(super::error::Error::NodeTypeUnknown),
+            _ => Err(Error::NodeTypeUnknown),
         }
     }
 }
 
-impl std::fmt::Display for EntryType {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+impl fmt::Display for EntryType {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match *self {
             EntryType::Empty => write!(f, "Empty"),
             EntryType::UserStorage => write!(f, "User storage"),
@@ -109,13 +108,13 @@ impl std::fmt::Display for EntryType {
 /// println!("Type of the entry: {}", entry._type());
 /// println!("Size of the entry: {}", entry.len());
 /// ```
-#[derive(Debug)]
+
 pub struct Entry {
     /// ID of the entry.
     id: u32,
 
     /// Name of the stream or the storage.
-    name: std::string::String,
+    name: String,
 
     /// Type of the entry.
     entry_type: EntryType,
@@ -133,10 +132,10 @@ pub struct Entry {
     root_node: u32,
 
     /// UID of the entry.
-    identifier: std::vec::Vec<u8>, // 16 bytes
+    identifier: [u8; 16], // 16 bytes
 
     /// Flags of the entry.
-    flags: std::vec::Vec<u8>, // 4 bytes
+    flags: u32, // 4 bytes
 
     /// Creation time.
     creation_time: u64,
@@ -145,20 +144,20 @@ pub struct Entry {
     last_modification_time: u64,
 
     /// Chain of secID which hold the stream or the storage
-    sec_id_chain: std::vec::Vec<u32>,
+    sec_id_chain: Vec<u32>,
 
     /// Size of the entry.
     size: usize,
 
     /// Array of the children's DirIDs
-    children_nodes: std::vec::Vec<u32>,
+    children_nodes: Vec<u32>,
 
     /// DirID of the parent
     parent_node: Option<u32>,
 }
 
 impl Entry {
-    fn from_slice(sector: &[u8], dir_id: u32) -> Result<Entry, super::error::Error> {
+    fn from_slice(sector: &[u8], dir_id: u32) -> Result<Entry, Error> {
         use crate::util::FromSlice;
         let entry = Entry {
             id: dir_id,
@@ -168,21 +167,25 @@ impl Entry {
             left_child_node: u32::from_slice(&sector[68..72]),
             right_child_node: u32::from_slice(&sector[72..76]),
             root_node: u32::from_slice(&sector[76..80]),
-            identifier: sector[80..96].to_vec(),
-            flags: sector[96..100].to_vec(),
+            identifier: {
+                let mut identifier = [0u8; 16];
+                identifier.clone_from_slice(&sector[80..96]);
+                identifier
+            },
+            flags: u32::from_slice(&sector[96..100]),
             creation_time: u64::from_slice(&sector[100..108]),
             last_modification_time: u64::from_slice(&sector[108..116]),
             sec_id_chain: vec![u32::from_slice(&sector[116..120])],
             size: usize::from_slice(&sector[120..124]),
-            children_nodes: std::vec::Vec::new(),
+            children_nodes: Vec::new(),
             parent_node: None,
         };
 
         Ok(entry)
     }
 
-    fn build_name(array: &[u8]) -> std::string::String {
-        let mut name = std::string::String::new();
+    fn build_name(array: &[u8]) -> String {
+        let mut name = String::new();
 
         let mut i = 0usize;
         while i < 64 && array[i] != 0 {
@@ -244,13 +247,13 @@ impl Entry {
     }
 
     /// Returns the DirIDs of the children, if exists
-    pub fn children_nodes(&self) -> &std::vec::Vec<u32> {
+    pub fn children_nodes(&self) -> &Vec<u32> {
         &self.children_nodes
     }
 }
 
-impl std::fmt::Display for Entry {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+impl fmt::Display for Entry {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(
             f,
             "Entry #{}. Type: {}, Color: {}, Name: {},
@@ -286,7 +289,7 @@ pub struct EntrySlice<'s> {
     max_chunk_size: usize,
 
     /// List of slices.
-    chunks: std::vec::Vec<&'s [u8]>,
+    chunks: Vec<&'s [u8]>,
 
     /// How many bytes which have been already read.
     read: usize,
@@ -301,8 +304,8 @@ pub struct EntrySlice<'s> {
 impl<'s> EntrySlice<'s> {
     fn new(max_chunk_size: usize, size: usize) -> EntrySlice<'s> {
         EntrySlice {
-            max_chunk_size: max_chunk_size,
-            chunks: std::vec::Vec::new(),
+            max_chunk_size,
+            chunks: Vec::new(),
             read: 0usize,
             total_size: size,
             real_size: 0,
@@ -361,13 +364,13 @@ impl<'s> std::io::Read for EntrySlice<'s> {
     }
 }
 
-impl<'ole> super::ole::Reader<'ole> {
+impl<'ole> Reader<'ole> {
     /// Returns the slice for the entry.
-    pub fn get_entry_slice(&self, entry: &Entry) -> Result<EntrySlice, super::error::Error> {
+    pub fn get_entry_slice(&self, entry: &Entry) -> Result<EntrySlice, Error> {
         let entry_slice: EntrySlice;
         let size = entry.size;
         if size == 0 {
-            Err(super::error::Error::EmptyEntry)
+            Err(Error::EmptyEntry)
         } else {
             if size < self.minimum_standard_stream_size {
                 entry_slice = self.get_short_stream_slices(&entry.sec_id_chain, size)?;
@@ -378,12 +381,9 @@ impl<'ole> super::ole::Reader<'ole> {
         }
     }
 
-    pub(crate) fn build_directory_entries(&mut self) -> Result<(), super::error::Error> {
-        let n_entry_by_sector =
-            self.sec_size / super::constants::DIRECTORY_ENTRY_SIZE;
-        let mut entries = std::vec::Vec::<Entry>::with_capacity(
-            self.dir_sat.len() * n_entry_by_sector,
-        );
+    pub(crate) fn build_directory_entries(&mut self) -> Result<(), Error> {
+        let n_entry_by_sector = self.sec_size / constants::DIRECTORY_ENTRY_SIZE;
+        let mut entries = Vec::<Entry>::with_capacity(self.dir_sat.len() * n_entry_by_sector);
 
         let mut k = 0usize;
         for i in 0..self.dir_sat.len() {
@@ -393,14 +393,14 @@ impl<'ole> super::ole::Reader<'ole> {
             // self.dump_difat_sector(&sector);
 
             let loc = i * constants::U32_SIZE;
-            if sector[loc..loc+4] == constants::FREE_SECID {
+            if sector[loc..loc + 4] == constants::FREE_SECID {
                 break;
             }
 
             for l in 0..n_entry_by_sector {
                 let entry = Entry::from_slice(
-                    &sector[l * super::constants::DIRECTORY_ENTRY_SIZE
-                        ..(l + 1) * super::constants::DIRECTORY_ENTRY_SIZE],
+                    &sector[l * constants::DIRECTORY_ENTRY_SIZE
+                        ..(l + 1) * constants::DIRECTORY_ENTRY_SIZE],
                     k as u32,
                 )?;
                 entries.push(entry);
@@ -431,11 +431,7 @@ impl<'ole> super::ole::Reader<'ole> {
         Ok(())
     }
 
-    fn get_short_stream_slices(
-        &self,
-        chain: &std::vec::Vec<u32>,
-        size: usize,
-    ) -> Result<EntrySlice, super::error::Error> {
+    fn get_short_stream_slices(&self, chain: &Vec<u32>, size: usize) -> Result<EntrySlice, Error> {
         let ssector_size = self.short_sec_size;
         let mut entry_slice = EntrySlice::new(ssector_size, size);
         let short_stream_chain = &self.entries.as_ref().unwrap()[0].sec_id_chain.clone();
@@ -453,11 +449,7 @@ impl<'ole> super::ole::Reader<'ole> {
         Ok(entry_slice)
     }
 
-    fn get_stream_slices(
-        &self,
-        chain: &std::vec::Vec<u32>,
-        size: usize,
-    ) -> Result<EntrySlice, super::error::Error> {
+    fn get_stream_slices(&self, chain: &Vec<u32>, size: usize) -> Result<EntrySlice, Error> {
         let sector_size = self.sec_size;
         let mut entry_slice = EntrySlice::new(sector_size, size);
         let mut total_read = 0;
@@ -473,7 +465,7 @@ impl<'ole> super::ole::Reader<'ole> {
 
     fn build_entry_tree(&mut self, id: u32, parent_id: Option<u32>) {
         // println!("build_entry_tree 0x{id:8x}");
-        if id != super::constants::FREE_SECID_U32 {
+        if id != constants::FREE_SECID_U32 {
             let (child, node_type, n) = {
                 let entries = self.entries.as_mut().expect("Valid entry");
 

@@ -14,7 +14,13 @@
 //
 // Author: zadig <thomas chr(0x40) bailleux.me>
 
-use std::{self, io::{Read, Seek, BufReader}};
+use std::{
+    self,
+    io::{BufReader, Read},
+    vec::Vec,
+};
+
+use super::{constants, entry::Entry, error::Error, iterator::OLEIterator};
 
 /// An OLE file reader.
 ///
@@ -37,7 +43,7 @@ use std::{self, io::{Read, Seek, BufReader}};
 
 pub struct Reader<'ole> {
     /// Buffer for reading from the source.
-    pub(crate) buf_reader: std::io::BufReader<Box<dyn Read + 'ole>>,
+    pub(crate) buf_reader: BufReader<Box<dyn Read + 'ole>>,
 
     /// Unique identifier.
     pub(crate) uid: [u8; 16],
@@ -55,25 +61,25 @@ pub struct Reader<'ole> {
     pub(crate) short_sec_size: usize,
 
     /// Sector Allocation Table.
-    pub(crate) sat: std::vec::Vec<u32>,
+    pub(crate) sat: Vec<u32>,
 
     /// Directory Sector Allocation Table.
-    pub(crate) dir_sat: std::vec::Vec<u32>,
+    pub(crate) dir_sat: Vec<u32>,
 
     /// Minimum size of a standard stream size.
     pub(crate) minimum_standard_stream_size: usize,
 
     /// Short Sector Allocation Table.
-    pub(crate) ssat: std::vec::Vec<u32>,
+    pub(crate) ssat: Vec<u32>,
 
     /// Master Sector Allocation Table.
-    pub(crate) main_sat: std::vec::Vec<u32>,
+    pub(crate) main_sat: Vec<u32>,
 
     /// Body of the file.
-    pub(crate) body: std::vec::Vec<u8>,
+    pub(crate) body: Vec<u8>,
 
     /// Directory entries.
-    pub(crate) entries: Option<std::vec::Vec<super::entry::Entry>>,
+    pub(crate) entries: Option<Vec<Entry>>,
 
     /// DirID of the root entry.
     pub(crate) root_entry: Option<u32>,
@@ -89,13 +95,13 @@ impl<'ole> Reader<'ole> {
     /// let mut my_resume = std::fs::File::open("assets/Thumbs.db").unwrap();
     /// let mut parser = ole::Reader::new(my_resume).unwrap();
     /// ```
-    pub fn new<T: 'ole>(readable: T) -> std::result::Result<Reader<'ole>, super::error::Error>
+    pub fn new<T: 'ole>(readable: T) -> std::result::Result<Reader<'ole>, Error>
     where
         T: Read,
     {
-        let mut read : BufReader<Box<dyn Read>> = std::io::BufReader::new(Box::new(readable));
+        let mut read: BufReader<Box<dyn Read>> = BufReader::new(Box::new(readable));
 
-        let mut buf =  Vec::<u8>::with_capacity(10_000_000);
+        let mut buf = Vec::<u8>::with_capacity(10_000_000);
 
         let body = read.read_to_end(&mut buf)?;
 
@@ -105,7 +111,7 @@ impl<'ole> Reader<'ole> {
 
         let mut t = Reader {
             buf_reader: read,
-            uid: [0u8; super::constants::UID_SIZE],
+            uid: [0u8; constants::UID_SIZE],
             revision_number: 0,
             version_number: 0,
             sec_size: 0,
@@ -114,7 +120,7 @@ impl<'ole> Reader<'ole> {
             dir_sat: Vec::new(),
             minimum_standard_stream_size: 0,
             ssat: Vec::new(),
-            main_sat: vec![super::constants::FREE_SECID_U32; 109],
+            main_sat: vec![constants::FREE_SECID_U32; 109],
             body: buf,
             entries: None,
             root_entry: None,
@@ -137,8 +143,8 @@ impl<'ole> Reader<'ole> {
     /// use ole;
     /// let mut parser = ole::Reader::from_path("assets/Thumbs.db").unwrap();
     /// ```
-    pub fn from_path(path: &str) -> Result<Reader, super::error::Error> {
-        let f = std::fs::File::open(path).map_err(super::error::Error::IOError)?;
+    pub fn from_path(path: &str) -> Result<Reader, Error> {
+        let f = std::fs::File::open(path).map_err(Error::IOError)?;
         Reader::new(f)
     }
 
@@ -154,27 +160,15 @@ impl<'ole> Reader<'ole> {
     ///   println!("Entry {}", entry.name());
     /// }
     /// ```
-    pub fn iterate(&self) -> super::iterator::OLEIterator {
-        super::iterator::OLEIterator::new(self)
+    pub fn iterate(&self) -> OLEIterator {
+        OLEIterator::new(self)
     }
-
-    // /// Read some bytes from the source.
-    // pub(crate) fn read_sector2(&mut self, buf: &mut [u8], sector_number: u32) -> Result<usize, super::error::Error> {
-    //     use std::io::{Read, Seek, SeekFrom};
-
-    //     let pos = SeekFrom::Start(sector_number as u64 * 512);
-    //     self.buf_reader.as_mut().unwrap().seek(pos)
-    //         .map_err(super::error::Error::IOError)?;
-    //     Ok(buf.len())
-    // }
 }
 
 #[cfg(test)]
 mod tests {
+    use super::{constants, Error, Reader};
 
-    use super::super::error::Error;
-    use super::Reader;
-    use std;
     #[test]
     fn instance_nok() {
         let path = "Thumbs.db";
@@ -200,7 +194,7 @@ mod tests {
 
     #[test]
     fn array_bad_identifier() {
-        let mut vec = super::super::constants::IDENTIFIER.to_vec();
+        let mut vec = constants::IDENTIFIER.to_vec();
         vec[0] = 0xD1;
         fill(&mut vec);
         let ole = Reader::new(&vec[..]);
@@ -209,13 +203,13 @@ mod tests {
     }
 
     fn fill(buf: &mut std::vec::Vec<u8>) {
-        let missing = vec![0u8; super::super::constants::HEADER_SIZE - buf.len()];
+        let missing = vec![0u8; constants::HEADER_SIZE - buf.len()];
         buf.extend(missing);
     }
 
     #[test]
     fn array_bad_endianness_identifier() {
-        let mut vec = super::super::constants::IDENTIFIER.to_vec();
+        let mut vec = constants::IDENTIFIER.to_vec();
         vec.extend(vec![0u8; 20]);
         vec.push(0xFE);
         vec.push(0xFE);
@@ -223,7 +217,7 @@ mod tests {
         let ole = Reader::new(&vec[..]);
         match ole {
             Ok(_t) => assert!(false),
-            Err(e ) => println!("BAD ENDIANNESS: {}", e),
+            Err(e) => println!("BAD ENDIANNESS: {}", e),
         }
     }
 
@@ -237,9 +231,9 @@ mod tests {
 
     #[test]
     fn bad_sec_size() {
-        let mut vec = super::super::constants::IDENTIFIER.to_vec();
+        let mut vec = constants::IDENTIFIER.to_vec();
         vec.extend(vec![0x42u8; 20]);
-        vec.extend(&super::super::constants::LITTLE_ENDIAN_IDENTIFIER);
+        vec.extend(&constants::LITTLE_ENDIAN_IDENTIFIER);
         vec.extend(vec![0xFF, 0xFF, 0xFF, 0xFF]);
         vec.extend(vec![0u8; 10]);
         vec.extend(vec![0xFF, 0xFF, 0xFF, 0xFF]);
@@ -258,12 +252,8 @@ mod tests {
 
     #[test]
     fn print_things() {
-        use std::io::{Read, Write};
         let ole = Reader::from_path("./assets/sample.ppt").unwrap();
-        println!(
-            "STREAM SIZE: {}",
-            ole.minimum_standard_stream_size
-        );
+        println!("STREAM SIZE: {}", ole.minimum_standard_stream_size);
         println!("MSAT: {:?}", ole.main_sat);
         println!("SAT: {:?}", ole.sat);
         println!("SSAT: {:?}", ole.ssat);

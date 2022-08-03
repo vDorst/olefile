@@ -26,7 +26,10 @@ impl<'ole> super::ole::Reader<'ole> {
             let sector = &self.body[offset..max_size];
             Ok(sector)
         } else {
-            println!("body: {} , max_size {max_size} {max_size:8x}", self.body.len());
+            println!(
+                "body: {} , max_size {max_size} {max_size:8x}",
+                self.body.len()
+            );
             Err(super::error::Error::BadSizeValue("File is too short"))
         }
     }
