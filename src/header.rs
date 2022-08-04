@@ -36,7 +36,7 @@ impl<'ole> Reader<'ole> {
             return Err(Error::InvalidOLEFile);
         }
 
-        //self.dump_header(&header_sector_data);
+        self.dump_header(&header_sector_data);
 
         // UID
         self.uid.copy_from_slice(&header_sector_data[8..24]);
@@ -52,7 +52,7 @@ impl<'ole> Reader<'ole> {
             return Err(Error::InvalidOLEVersion(self.version_number));
         }
 
-        if self.revision_number != 0x003e {
+        if ![0x003e, 0x003b].contains(&self.revision_number)  {
             return Err(Error::InvalidOLEVersion(self.revision_number));
         }
 

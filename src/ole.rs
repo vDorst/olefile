@@ -273,4 +273,28 @@ mod tests {
             // }
         }
     }
+
+    #[test]
+    fn print_things_large_single_difat() {
+        let ole = Reader::from_path("./assets/large_single_difat.ppt").unwrap();
+        println!("STREAM SIZE: {}", ole.minimum_standard_stream_size);
+        println!("MSAT: {:?}", ole.main_sat);
+        println!("SAT: {:?}", ole.sat);
+        println!("SSAT: {:?}", ole.ssat);
+        println!("DSAT: {:?}", ole.dir_sat);
+        for entry in ole.iterate() {
+            println!("{}", entry);
+            // if let Ok(mut slice) = ole.get_entry_slice(entry) {
+            //     let mut buf = vec![0u8; slice.len()];
+            //     let read_size = slice.read(&mut buf).unwrap();
+            //     let mut file =
+            //         std::fs::File::create(format!("./assets/streams/{}.bin", entry.name()))
+            //             .unwrap();
+            //     println!("Real len: {}", slice.real_len());
+            //     file.write_all(&buf).unwrap();
+            //     assert_eq!(read_size, slice.real_len());
+            //     assert_eq!(read_size, slice.len());
+            // }
+        }
+    }
 }
