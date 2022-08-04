@@ -16,7 +16,7 @@
 
 use std::{self, vec::Vec};
 
-use super::{ole::Reader, error::Error, constants};
+use super::{ole::Reader, error::Error, constants, util::FromSlice};
 
 impl<'ole> Reader<'ole> {
     pub(crate) fn build_sat(&mut self) -> Result<(), Error> {
@@ -53,7 +53,7 @@ impl<'ole> Reader<'ole> {
         sec_ids: &mut Vec<u32>,
     ) -> Result<(), Error> {
         let sector = self.read_sector(sector_index)?;
-        use crate::util::FromSlice;
+
         for (i, data) in sector.chunks_exact(4).enumerate() {
             if i == sec_ids.capacity() {
                 break;
