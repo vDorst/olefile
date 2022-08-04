@@ -184,13 +184,13 @@ impl<'ole> Reader<'ole> {
         for (e, data) in header.chunks(4).enumerate() {
             let d: u32 = u32::from_slice(data);
 
-            if (0..0xFFFF_FFF9).contains(&d) {
+            if (0..constants::SECID_MAX).contains(&d) {
                 println!("\t{e:3} - 0x{d:8x} [{d}]");
-            } else if d == 0xFFFFFFFD {
+            } else if d == constants::CONTAINS_FAT_SECTORS {
                 println!("\t{e:3} - FAT SECTOR 0x{d:8x}");
-            } else if d == 0xFFFFFFFE {
+            } else if d == constants::END_OF_CHAIN_SECID_U32 {
                 println!("\t{e:3} - ENDOFCHAIN 0x{d:8x}");
-            } else if d == 0xFFFFFFFF {
+            } else if d == constants::FREE_SECID_U32 {
                 println!("\t{e:3} - FREE 0x{d:8x}");
             } else {
                 println!("\t{e:3} - UNKNOWN 0x{d:8x}");

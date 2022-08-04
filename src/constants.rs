@@ -26,7 +26,7 @@ pub(crate) const FREE_SECID: [u8; 4] = [0xFF, 0xFF, 0xFF, 0xFF];
 pub(crate) const FREE_SECID_U32: u32 = 0xFFFF_FFFF;
 pub(crate) const END_OF_CHAIN_SECID_U32: u32 = 0xFFFF_FFFE;
 pub(crate) const CONTAINS_FAT_SECTORS: u32 = 0xFFFF_FFFD;
-// pub(crate) const SECID_MAX: u32 = 0xFFFF_FFF9;
+pub(crate) const SECID_MAX: u32 = 0xFFFF_FFF9;
 
 pub(crate) const U32_SIZE: usize = std::mem::size_of::<u32>();
 

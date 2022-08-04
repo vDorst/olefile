@@ -231,22 +231,22 @@ impl Entry {
         self.size == 0
     }
 
-    /// Returns the DirID of the left child node
+    /// Returns the `DirID` of the left child node
     pub fn left_child_node(&self) -> u32 {
         self.left_child_node
     }
 
-    /// Returns the DirID of the right child node
+    /// Returns the `DirID` of the right child node
     pub fn right_child_node(&self) -> u32 {
         self.right_child_node
     }
 
-    /// Returns the DirID of the parent, if exists
+    /// Returns the `DirID` of the parent, if exists
     pub fn parent_node(&self) -> Option<u32> {
         self.parent_node
     }
 
-    /// Returns the DirIDs of the children, if exists
+    /// Returns the `DirID`s of the children, if exists
     pub fn children_nodes(&self) -> &Vec<u32> {
         &self.children_nodes
     }
@@ -433,17 +433,17 @@ impl<'ole> Reader<'ole> {
     }
 
     fn get_short_stream_slices(&self, chain: &Vec<u32>, size: usize) -> Result<EntrySlice, Error> {
-        let ssector_size = self.short_sec_size;
-        let mut entry_slice = EntrySlice::new(ssector_size, size);
+        let short_sector_size = self.short_sec_size;
+        let mut entry_slice = EntrySlice::new(short_sector_size, size);
         let short_stream_chain = &self.entries.as_ref().unwrap()[0].sec_id_chain.clone();
-        let n_per_sector = self.sec_size / ssector_size;
+        let n_per_sector = self.sec_size / short_sector_size;
         let mut total_read = 0;
-        for ssector_id in chain {
-            let sector_index = short_stream_chain[*ssector_id as usize / n_per_sector];
+        for short_sec_id in chain {
+            let sector_index = short_stream_chain[*short_sec_id as usize / n_per_sector];
             let sector = self.read_sector(sector_index)?;
-            let ssector_index = *ssector_id as usize % n_per_sector;
-            let start = ssector_index as usize * ssector_size;
-            let end = start + std::cmp::min(ssector_size, size - total_read);
+            let short_sector_index = *short_sec_id as usize % n_per_sector;
+            let start = short_sector_index as usize * short_sector_size;
+            let end = start + std::cmp::min(short_sector_size, size - total_read);
             entry_slice.add_chunk(&sector[start..end]);
             total_read += end - start;
         }
