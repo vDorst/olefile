@@ -16,12 +16,10 @@
 
 use std::vec::Vec;
 
-use super::{constants, error::Error, ole::Reader};
+use super::{constants, error::Error, ole::Reader, util::FromSlice};
 
 impl<'ole> Reader<'ole> {
     pub(crate) fn parse_header(&mut self) -> Result<(), Error> {
-        use crate::util::FromSlice;
-
         // read the header
         //let mut header_sector_data: std::vec::Vec<u8> = vec![0u8; super::constants::HEADER_SIZE];
         // let s = self.read(&mut header_sector_data)?;
@@ -38,17 +36,17 @@ impl<'ole> Reader<'ole> {
             return Err(Error::InvalidOLEFile);
         }
 
-        // self.dump_header(&header_sector_data);
+        //self.dump_header(&header_sector_data);
 
         // UID
         self.uid.copy_from_slice(&header_sector_data[8..24]);
 
         // Revision number & version number
-        let rv_number = usize::from_slice(&header_sector_data[24..26]);
-        self.revision_number = rv_number as u16;
+        let rv_number = u16::from_slice(&header_sector_data[24..26]);
+        self.revision_number = rv_number;
 
-        let rv_number = usize::from_slice(&header_sector_data[26..28]);
-        self.version_number = rv_number as u16;
+        let rv_number = u16::from_slice(&header_sector_data[26..28]);
+        self.version_number = rv_number;
 
         if !(3..4).contains(&rv_number) {
             return Err(Error::InvalidOLEVersion(self.version_number));
@@ -72,7 +70,7 @@ impl<'ole> Reader<'ole> {
         // println!("HIER2");
 
         // Sector size or Sector Shift
-        let mut k = usize::from_slice(&header_sector_data[30..32]);
+        let mut k = u32::from(u16::from_slice(&header_sector_data[30..32]));
 
         // if k >= 16, it means that the sector size equals 2 ^ k, which
         // is impossible.
@@ -86,10 +84,10 @@ impl<'ole> Reader<'ole> {
             return Err(Error::BadSizeValue("Wrong Sector size!"));
         }
 
-        self.sec_size = 2usize.pow(k as u32);
+        self.sec_size = 2usize.pow(k);
 
         // Short sector size
-        k = usize::from_slice(&header_sector_data[32..34]);
+        k = u32::from(u16::from_slice(&header_sector_data[32..34]));
 
         // same for sector size
         if k >= 16 {
@@ -99,7 +97,7 @@ impl<'ole> Reader<'ole> {
             return Err(Error::BadSizeValue("Wrong Mini Sector size!"));
         }
 
-        self.short_sec_size = 2usize.pow(k as u32);
+        self.short_sec_size = 2usize.pow(k);
 
         let alloc_size = (self.short_sec_size / constants::U32_SIZE)
             * usize::from_slice(&header_sector_data[44..48]);
@@ -157,7 +155,7 @@ impl<'ole> Reader<'ole> {
     /// Dump Header
     pub fn dump_header(&self, header: &[u8]) {
         for (e, data) in header.chunks(4).enumerate() {
-            let d: u32 = u32::from_ne_bytes(data.try_into().unwrap());
+            let d = u32::from_slice(data);
 
             let byte = e * 4;
             match byte {
@@ -184,7 +182,7 @@ impl<'ole> Reader<'ole> {
     pub fn dump_difat_sector(&self, header: &[u8]) {
         println!("\n\t\tDUMP DIFAT SECTOR");
         for (e, data) in header.chunks(4).enumerate() {
-            let d: u32 = u32::from_ne_bytes(data.try_into().unwrap());
+            let d: u32 = u32::from_slice(data);
 
             if (0..0xFFFF_FFF9).contains(&d) {
                 println!("\t{e:3} - 0x{d:8x} [{d}]");
@@ -202,8 +200,6 @@ impl<'ole> Reader<'ole> {
 
     /// Build the Master Sector Allocation Table (MSAT)
     fn build_master_sector_allocation_table(&mut self, header: &[u8]) -> Result<(), Error> {
-        use crate::util::FromSlice;
-
         self.main_sat.clear();
 
         // First, we build the master sector allocation table from the header
@@ -214,14 +210,14 @@ impl<'ole> Reader<'ole> {
             // println!("total_sec_id_read {total_sec_id_read}");
             // return Err(super::error::Error::NotImplementedYet);
             let sec_size = self.sec_size;
-            let mut sec_id = usize::from_slice(&header[68..72]);
+            let mut sec_id = u32::from_slice(&header[68..72]);
             let number = usize::from_slice(&header[72..76]);
 
             for _ in 0..number {
-                if sec_id == constants::END_OF_CHAIN_SECID_U32 as usize {
+                if sec_id == constants::END_OF_CHAIN_SECID_U32 {
                     break;
                 }
-                if sec_id == constants::FREE_SECID_U32 as usize {
+                if sec_id == constants::FREE_SECID_U32 {
                     break;
                 }
 
@@ -245,12 +241,12 @@ impl<'ole> Reader<'ole> {
 
                 total_sec_id_read += found;
 
-                sec_id = usize::from_slice(&b[sec_size - 4..sec_size]);
+                sec_id = u32::from_slice(&b[sec_size - 4..sec_size]);
 
                 // println!("---- LAST SECID 0x{sec_id:8x}");
 
-                if sec_id != constants::END_OF_CHAIN_SECID_U32 as usize
-                    && sec_id != constants::FREE_SECID_U32 as usize
+                if sec_id != constants::END_OF_CHAIN_SECID_U32
+                    && sec_id != constants::FREE_SECID_U32
                 {
                     panic!("Invalid DIFAT ending!");
                 }
@@ -265,7 +261,6 @@ impl<'ole> Reader<'ole> {
     }
 
     fn read_sec_ids(&mut self, buffer: &[u8]) -> usize {
-        use crate::util::FromSlice;
         let mut i = 0usize;
         // let max_sec_ids = buffer.len() / 4;
 

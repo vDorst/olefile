@@ -42,7 +42,7 @@ impl fmt::Display for NodeColour {
     }
 }
 
-#[derive(PartialEq, Debug, Clone, Copy)]
+#[derive(Eq, PartialEq, Debug, Clone, Copy)]
 pub enum EntryType {
     /// Empty entry.
     Empty,
@@ -385,10 +385,10 @@ impl<'ole> Reader<'ole> {
         let n_entry_by_sector = self.sec_size / constants::DIRECTORY_ENTRY_SIZE;
         let mut entries = Vec::<Entry>::with_capacity(self.dir_sat.len() * n_entry_by_sector);
 
-        let mut k = 0usize;
+        let mut k = 0u32;
         for i in 0..self.dir_sat.len() {
             let sector_index = self.dir_sat[i];
-            let sector = self.read_sector(sector_index as usize)?;
+            let sector = self.read_sector(sector_index)?;
 
             // self.dump_difat_sector(&sector);
 
@@ -401,17 +401,18 @@ impl<'ole> Reader<'ole> {
                 let entry = Entry::from_slice(
                     &sector[l * constants::DIRECTORY_ENTRY_SIZE
                         ..(l + 1) * constants::DIRECTORY_ENTRY_SIZE],
-                    k as u32,
+                    k,
                 )?;
                 entries.push(entry);
                 k += 1;
             }
         }
         let stream_size = self.minimum_standard_stream_size;
-        for (i, entry) in entries.iter_mut().enumerate() {
+
+        for (i, entry) in (0_u32..).zip(&mut entries.iter_mut()) {
             match entry.entry_type {
                 EntryType::UserStream => {
-                    let start_index = entry.sec_id_chain.pop().unwrap();
+                    let start_index = entry.sec_id_chain.pop().expect("No sectors in cahin!");
                     entry.sec_id_chain = if entry.size < stream_size {
                         self.build_chain_from_ssat(start_index)
                     } else {
@@ -419,8 +420,8 @@ impl<'ole> Reader<'ole> {
                     };
                 }
                 EntryType::RootStorage => {
-                    self.root_entry = Some(i as u32);
-                    let start_index = entry.sec_id_chain.pop().unwrap();
+                    self.root_entry = Some(i);
+                    let start_index = entry.sec_id_chain.pop().expect("No sectors in cahin!");
                     entry.sec_id_chain = self.build_chain_from_sat(start_index);
                 }
                 _ => {}
@@ -439,7 +440,7 @@ impl<'ole> Reader<'ole> {
         let mut total_read = 0;
         for ssector_id in chain {
             let sector_index = short_stream_chain[*ssector_id as usize / n_per_sector];
-            let sector = self.read_sector(sector_index as usize)?;
+            let sector = self.read_sector(sector_index)?;
             let ssector_index = *ssector_id as usize % n_per_sector;
             let start = ssector_index as usize * ssector_size;
             let end = start + std::cmp::min(ssector_size, size - total_read);
@@ -454,7 +455,7 @@ impl<'ole> Reader<'ole> {
         let mut entry_slice = EntrySlice::new(sector_size, size);
         let mut total_read = 0;
         for sector_id in chain {
-            let sector = self.read_sector(*sector_id as usize)?;
+            let sector = self.read_sector(*sector_id)?;
             let start = 0usize;
             let end = std::cmp::min(sector_size, size - total_read);
             entry_slice.add_chunk(&sector[start..end]);
@@ -469,7 +470,7 @@ impl<'ole> Reader<'ole> {
             let (child, node_type, n) = {
                 let entries = self.entries.as_mut().expect("Valid entry");
 
-                let n = entries.len() as u32;
+                let n = u32::try_from(entries.len()).expect("length to big to fit in u32");
 
                 // if id >= n {
                 //     panic!("read out of bouned.");

@@ -14,9 +14,12 @@
 //
 // Author: zadig <thomas chr(0x40) bailleux.me>
 
+use super::error::Error;
+
 impl<'ole> super::ole::Reader<'ole> {
-    pub(crate) fn read_sector(&self, sector_index: usize) -> Result<&[u8], super::error::Error> {
+    pub(crate) fn read_sector(&self, sector_index: u32) -> Result<&[u8], Error> {
         let sector_size = self.sec_size;
+        let sector_index = usize::try_from(sector_index).expect("sector_index to big for usize");
         let offset = sector_size + sector_size * sector_index;
         let max_size = offset + sector_size;
 
@@ -30,7 +33,7 @@ impl<'ole> super::ole::Reader<'ole> {
                 "body: {} , max_size {max_size} {max_size:8x}",
                 self.body.len()
             );
-            Err(super::error::Error::BadSizeValue("File is too short"))
+            Err(Error::BadSizeValue("File is too short"))
         }
     }
 }

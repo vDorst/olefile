@@ -21,10 +21,10 @@ use super::{ole::Reader, error::Error, constants};
 impl<'ole> Reader<'ole> {
     pub(crate) fn build_sat(&mut self) -> Result<(), Error> {
         let sector_size = self.sec_size;
-        let mut sec_ids = vec![super::constants::FREE_SECID_U32; sector_size / 4];
+        let mut sec_ids = vec![constants::FREE_SECID_U32; sector_size / 4];
         let msat_entries = &self.main_sat;
 
-        println!("\t build_sat msat_en {}", msat_entries.len());
+        // println!("\t build_sat msat_en {}", msat_entries.len());
 
         if msat_entries.is_empty() {
             Err(Error::EmptyMasterSectorAllocationTable)
@@ -38,7 +38,7 @@ impl<'ole> Reader<'ole> {
                 if sector_index == constants::FREE_SECID_U32 {
                     break;
                 }
-                self.read_sat_sector(sector_index as usize, &mut sec_ids)?;
+                self.read_sat_sector(sector_index, &mut sec_ids)?;
                 self.sat.extend_from_slice(&sec_ids);
             }
             self.build_ssat()?;
@@ -49,7 +49,7 @@ impl<'ole> Reader<'ole> {
 
     pub(crate) fn read_sat_sector(
         &self,
-        sector_index: usize,
+        sector_index: u32,
         sec_ids: &mut Vec<u32>,
     ) -> Result<(), Error> {
         let sector = self.read_sector(sector_index)?;
@@ -99,7 +99,7 @@ impl<'ole> Reader<'ole> {
         let chain = self.build_chain_from_sat(sector_index);
 
         for sector_index in chain {
-            self.read_sat_sector(sector_index as usize, &mut sec_ids)?;
+            self.read_sat_sector(sector_index, &mut sec_ids)?;
             self.ssat.extend_from_slice(&sec_ids);
         }
         Ok(())
