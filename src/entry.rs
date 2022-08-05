@@ -161,7 +161,10 @@ impl Entry {
         use crate::util::FromSlice;
         let entry = Entry {
             id: dir_id,
-            name: Entry::build_name(&sector[0..64]),
+            name: {
+                let name_len = u16::from_slice(&sector[64..66]);
+                Entry::build_name(name_len, &sector[0..64])?
+            },
             entry_type: EntryType::from(sector[66])?,
             color: NodeColour::from(sector[67])?,
             left_child_node: u32::from_slice(&sector[68..72]),
@@ -184,16 +187,20 @@ impl Entry {
         Ok(entry)
     }
 
-    fn build_name(array: &[u8]) -> String {
-        let mut name = String::new();
-
-        let mut i = 0usize;
-        while i < 64 && array[i] != 0 {
-            name.push(array[i] as char);
-            i += 2;
+    fn build_name(text_len: u16, array: &[u8]) -> Result<String, Error> {
+        if text_len & 1 == 1 || !(0..=64).contains(&text_len) {
+            return Err(Error::UTF16Error);
         }
 
-        name
+        let mut buf = Vec::<u16>::with_capacity(usize::from(text_len / 2));
+
+        for d in array.chunks_exact(constants::U16_SIZE) {
+            buf.push(u16::from_le_bytes(d.try_into().unwrap()));
+        }
+
+        String::from_utf16(&buf).map_err(|_e| {
+            Error::UTF16Error
+        })
     }
 
     /// Returns the ID of the entry.
@@ -256,9 +263,15 @@ impl fmt::Display for Entry {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(
             f,
-            "Entry #{}. Type: {}, Color: {}, Name: {},
-      Size: {}. SecID chain: {:?}",
-            self.id, self.entry_type, self.color, &self.name, self.size, self.sec_id_chain
+            "Entry #{}. Type: {}, Color: {}, Name: '{}',
+      Size: {}. SecID chain: {:?} ParentNode: {:?}",
+            self.id,
+            self.entry_type,
+            self.color,
+            &self.name,
+            self.size,
+            self.sec_id_chain,
+            self.parent_node
         )
     }
 }
@@ -393,7 +406,7 @@ impl<'ole> Reader<'ole> {
             // self.dump_difat_sector(&sector);
 
             let loc = i * constants::U32_SIZE;
-            if sector[loc..loc + 4] == constants::FREE_SECID {
+            if sector[loc..loc + 4] == constants::FREE_SECID_ARRAY_U8 {
                 break;
             }
 
@@ -466,7 +479,7 @@ impl<'ole> Reader<'ole> {
 
     fn build_entry_tree(&mut self, id: u32, parent_id: Option<u32>) {
         // println!("build_entry_tree 0x{id:8x}");
-        if id != constants::FREE_SECID_U32 {
+        if id != constants::SECID_FREE_SECTOR {
             let (child, node_type, n) = {
                 let entries = self.entries.as_mut().expect("Valid entry");
 

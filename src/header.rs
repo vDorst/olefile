@@ -52,7 +52,7 @@ impl<'ole> Reader<'ole> {
             return Err(Error::InvalidOLEVersion(self.version_number));
         }
 
-        if ![0x003e, 0x003b].contains(&self.revision_number)  {
+        if ![0x003e, 0x003b].contains(&self.revision_number) {
             return Err(Error::InvalidOLEVersion(self.revision_number));
         }
 
@@ -99,8 +99,8 @@ impl<'ole> Reader<'ole> {
 
         self.short_sec_size = 2usize.pow(k);
 
-        let alloc_size = (self.short_sec_size / constants::U32_SIZE)
-            * usize::from_slice(&header_sector_data[44..48]);
+        // Get the number of FAT sectors within the file.
+        let alloc_size = usize::from_slice(&header_sector_data[44..48]);
 
         // Total number of sectors used for the sector allocation table
         let total_sector_alloc_table = Vec::<u32>::with_capacity(alloc_size);
@@ -133,7 +133,7 @@ impl<'ole> Reader<'ole> {
         let difat_sectors = usize::from_slice(&header_sector_data[72..76]);
 
         let msat_size = 109
-            + if difat_sectors == constants::END_OF_CHAIN_SECID_U32 as usize {
+            + if difat_sectors == constants::SECID_END_OF_CHAIN as usize {
                 0
             } else {
                 difat_sectors
@@ -149,12 +149,13 @@ impl<'ole> Reader<'ole> {
 
         // now we build the MSAT
         self.build_master_sector_allocation_table(&header_sector_data)?;
+
         Ok(())
     }
 
     /// Dump Header
     pub fn dump_header(&self, header: &[u8]) {
-        for (e, data) in header.chunks(4).enumerate() {
+        for (e, data) in header.chunks_exact(constants::U32_SIZE).enumerate() {
             let d = u32::from_slice(data);
 
             let byte = e * 4;
@@ -179,22 +180,28 @@ impl<'ole> Reader<'ole> {
     }
 
     /// Dump sector
-    pub fn dump_difat_sector(&self, header: &[u8]) {
-        println!("\n\t\tDUMP DIFAT SECTOR");
-        for (e, data) in header.chunks(4).enumerate() {
-            let d: u32 = u32::from_slice(data);
-
-            if (0..constants::SECID_MAX).contains(&d) {
-                println!("\t{e:3} - 0x{d:8x} [{d}]");
-            } else if d == constants::CONTAINS_FAT_SECTORS {
-                println!("\t{e:3} - FAT SECTOR 0x{d:8x}");
-            } else if d == constants::END_OF_CHAIN_SECID_U32 {
-                println!("\t{e:3} - ENDOFCHAIN 0x{d:8x}");
-            } else if d == constants::FREE_SECID_U32 {
-                println!("\t{e:3} - FREE 0x{d:8x}");
-            } else {
-                println!("\t{e:3} - UNKNOWN 0x{d:8x}");
+    pub fn dump_fat(&self) {
+        print!("\n\t\tDUMP FAT TABLE");
+        for (e, &sec_id) in self.sat.iter().enumerate() {
+            let newline = (e & 0x3) == 0;
+            if newline {
+                print!("\n {e:4x}: ");
             }
+
+            if (0..=constants::SECID_MAX).contains(&sec_id) {
+                print!("{sec_id:8x}");
+            } else if sec_id == constants::SECID_FAT_SECTOR {
+                print!("FATSECT ");
+            } else if sec_id == constants::SECID_END_OF_CHAIN {
+                print!("EOFCHAIN");
+            } else if sec_id == constants::SECID_FREE_SECTOR {
+                print!("FREE    ");
+            } else if sec_id == constants::SECID_DIFAT_SECTOR {
+                print!("DIFSECT ");
+            } else {
+                print!("\t{e:3} - UNKNOWN 0x{sec_id:8x}");
+            }
+            print!(" ");
         }
     }
 
@@ -205,33 +212,17 @@ impl<'ole> Reader<'ole> {
         // First, we build the master sector allocation table from the header
         let mut total_sec_id_read = self.read_sec_ids(&header[76..]);
 
+        let mut difat_sector_id = u32::from_slice(&header[68..72]);
+        let difet_sectors = usize::from_slice(&header[72..76]);
+
         // Check if additional sectors are used for building the msat
-        if total_sec_id_read == 109 {
+        if difat_sector_id != constants::SECID_END_OF_CHAIN && difet_sectors > 0 {
             // println!("total_sec_id_read {total_sec_id_read}");
             // return Err(super::error::Error::NotImplementedYet);
             let sec_size = self.sec_size;
-            let mut sec_id = u32::from_slice(&header[68..72]);
-            let number = usize::from_slice(&header[72..76]);
 
-            for _ in 0..number {
-                if sec_id == constants::END_OF_CHAIN_SECID_U32 {
-                    break;
-                }
-                if sec_id == constants::FREE_SECID_U32 {
-                    break;
-                }
-
-                // println!("DIFAT block {i}, sector 0x{sec_id:x} {sec_id}x");
-
-                // // check if we need to read more data
-                // if buffer.len() <= relative_offset + sec_size {
-                //     let new_len = (sec_id + 1) * sec_size;
-                //     println!("\tAlloc new buffer space {} -> {}", buffer.len(), new_len);
-                //     buffer.resize(new_len, 0xEEu8);
-                //     self.read(&mut buffer[relative_offset..relative_offset + sec_size])?;
-                // }
-
-                let buffer = self.read_sector(sec_id)?.to_vec();
+            for _ in 0..difet_sectors {
+                let buffer = self.read_sector(difat_sector_id)?.to_vec();
 
                 assert!(buffer.len() == sec_size);
 
@@ -241,50 +232,42 @@ impl<'ole> Reader<'ole> {
 
                 total_sec_id_read += found;
 
-                sec_id = u32::from_slice(&b[sec_size - 4..sec_size]);
+                difat_sector_id = u32::from_slice(&b[sec_size - 4..sec_size]);
 
-                // println!("---- LAST SECID 0x{sec_id:8x}");
-
-                if sec_id != constants::END_OF_CHAIN_SECID_U32
-                    && sec_id != constants::FREE_SECID_U32
+                if difat_sector_id != constants::SECID_END_OF_CHAIN
+                    && difat_sector_id != constants::SECID_FREE_SECTOR
                 {
                     panic!("Invalid DIFAT ending!");
                 }
             }
         }
 
-        // println!("Found total of {total_sec_id_read}");
-
-        //self.main_sat.resize(total_sec_id_read, constants::FREE_SECID_U32);
+        if total_sec_id_read != self.sat.capacity() {
+            println!("Found {total_sec_id_read} Reported {}", self.sat.capacity());
+            return Err(Error::InvalidOLEFile);
+        }
 
         Ok(())
     }
 
+    /// Reads all the DIFAT entries.
+    /// But skip the `FREE_SECID_U32` enties, but don´t assum that a `FREE_SECID_U32` entry is the end of the chain!
+    /// Returns: Number of FAT sector entries found
     fn read_sec_ids(&mut self, buffer: &[u8]) -> usize {
         let mut i = 0usize;
-        // let max_sec_ids = buffer.len() / 4;
+        let max_sec_ids = u32::try_from(self.body.len() / self.sec_size)
+            .expect("Your platform is not supported!");
 
         for data in buffer.chunks_exact(constants::U32_SIZE) {
             let secid = u32::from_slice(data);
-            // if secid == constants::FREE_SECID_U32 {
-            //     println!("EOE!");
-            //     break;
-            // }
-            // if secid == constants::CONTAINS_FAT_SECTORS {
-            //     println!("EOD!");
-            //     break;
-            // }
-            // if secid > super::constants::SECID_MAX {
-            //     println!("Unknown ID 0x{secid:8x}");
-            //     break;
-            // }
 
-            // println!("\tsec_id found {i:3} idx {}, 0x{secid:8x} {secid} ", self.main_sat.len());
-
-            if secid == constants::END_OF_CHAIN_SECID_U32 {
-                break;
+            // Skip the free entries
+            if secid == constants::SECID_FREE_SECTOR {
+                continue;
             }
-            if secid == constants::FREE_SECID_U32 {
+
+            if secid >= max_sec_ids {
+                println!("\t\tsecid oob {secid}/{max_sec_ids}");
                 break;
             }
 

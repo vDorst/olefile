@@ -120,7 +120,7 @@ impl<'ole> Reader<'ole> {
             dir_sat: Vec::new(),
             minimum_standard_stream_size: 0,
             ssat: Vec::new(),
-            main_sat: vec![constants::FREE_SECID_U32; 109],
+            main_sat: vec![constants::SECID_FREE_SECTOR; 109],
             body: buf,
             entries: None,
             root_entry: None,
@@ -129,6 +129,8 @@ impl<'ole> Reader<'ole> {
         t.parse_header()?;
         println!("build_sat");
         t.build_sat()?;
+
+        // t.dump_fat();
         println!("build_dir_entries");
         t.build_directory_entries()?;
         println!("Done");
@@ -254,10 +256,10 @@ mod tests {
     fn print_things() {
         let ole = Reader::from_path("./assets/sample.ppt").unwrap();
         println!("STREAM SIZE: {}", ole.minimum_standard_stream_size);
-        println!("MSAT: {:?}", ole.main_sat);
-        println!("SAT: {:?}", ole.sat);
-        println!("SSAT: {:?}", ole.ssat);
-        println!("DSAT: {:?}", ole.dir_sat);
+        println!("MSAT: {:x?}", ole.main_sat);
+        println!("SAT: {:x?}", ole.sat);
+        println!("SSAT: {:x?}", ole.ssat);
+        println!("DSAT: {:x?}", ole.dir_sat);
         for entry in ole.iterate() {
             println!("{}", entry);
             // if let Ok(mut slice) = ole.get_entry_slice(entry) {
@@ -278,10 +280,10 @@ mod tests {
     fn print_things_large_single_difat() {
         let ole = Reader::from_path("./assets/large_single_difat.ppt").unwrap();
         println!("STREAM SIZE: {}", ole.minimum_standard_stream_size);
-        println!("MSAT: {:?}", ole.main_sat);
-        println!("SAT: {:?}", ole.sat);
-        println!("SSAT: {:?}", ole.ssat);
-        println!("DSAT: {:?}", ole.dir_sat);
+        println!("MSAT: {:x?}", ole.main_sat);
+        println!("SAT: {:x?}", ole.sat);
+        println!("SSAT: {:x?}", ole.ssat);
+        println!("DSAT: {:x?}", ole.dir_sat);
         for entry in ole.iterate() {
             println!("{}", entry);
             // if let Ok(mut slice) = ole.get_entry_slice(entry) {
@@ -295,6 +297,32 @@ mod tests {
             //     assert_eq!(read_size, slice.real_len());
             //     assert_eq!(read_size, slice.len());
             // }
+        }
+    }
+
+    #[test]
+    fn print_things_altium_lib_non_difat() {
+        let ole = Reader::from_path("./assets/691 412 120 0xx B.PcbLib").unwrap();
+        println!("STREAM SIZE: {}", ole.minimum_standard_stream_size);
+        println!("MSAT: {:x?}", ole.main_sat);
+        println!("SAT: {:x?}", ole.sat);
+        println!("SSAT: {:x?}", ole.ssat);
+        println!("DSAT: {:x?}", ole.dir_sat);
+        for entry in ole.iterate().filter(|e| e.parent_node() == Some(0)) {
+            println!("{}", entry);
+        }
+    }
+
+    #[test]
+    fn print_things_altium_lib_difat() {
+        let ole = Reader::from_path("./assets/COM-SAMTEC-CLT.PcbLib").unwrap();
+        println!("STREAM SIZE: {}", ole.minimum_standard_stream_size);
+        println!("MSAT: {:x?}", ole.main_sat);
+        println!("SAT: {:x?}", ole.sat);
+        println!("SSAT: {:x?}", ole.ssat);
+        println!("DSAT: {:x?}", ole.dir_sat);
+        for entry in ole.iterate().filter(|e| e.parent_node() == Some(0)) {
+            println!("{}", entry);
         }
     }
 }

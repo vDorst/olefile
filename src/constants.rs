@@ -22,12 +22,14 @@ pub(crate) const UID_SIZE: usize = 16;
 pub(crate) const LITTLE_ENDIAN_IDENTIFIER: [u8; 2] = [0xFE, 0xFF];
 pub(crate) const BIG_ENDIAN_IDENTIFIER: [u8; 2] = [0xFF, 0xFE];
 
-pub(crate) const FREE_SECID: [u8; 4] = [0xFF, 0xFF, 0xFF, 0xFF];
-pub(crate) const FREE_SECID_U32: u32 = 0xFFFF_FFFF;
-pub(crate) const END_OF_CHAIN_SECID_U32: u32 = 0xFFFF_FFFE;
-pub(crate) const CONTAINS_FAT_SECTORS: u32 = 0xFFFF_FFFD;
+pub(crate) const FREE_SECID_ARRAY_U8: [u8; 4] = [0xFF, 0xFF, 0xFF, 0xFF];
+pub(crate) const SECID_FREE_SECTOR: u32 = 0xFFFF_FFFF;
+pub(crate) const SECID_END_OF_CHAIN: u32 = 0xFFFF_FFFE;
+pub(crate) const SECID_FAT_SECTOR: u32 = 0xFFFF_FFFD;
 pub(crate) const SECID_MAX: u32 = 0xFFFF_FFF9;
+pub const SECID_DIFAT_SECTOR: u32 = 0xFFFF_FFFC;
 
 pub(crate) const U32_SIZE: usize = std::mem::size_of::<u32>();
+pub(crate) const U16_SIZE: usize = std::mem::size_of::<u16>();
 
 pub(crate) const DIRECTORY_ENTRY_SIZE: usize = 128;

@@ -14,7 +14,7 @@
 //
 // Author: zadig <thomas chr(0x40) bailleux.me>
 
-use super::{ole::Reader, entry::Entry};
+use super::{entry::Entry, ole::Reader};
 
 /// Iterator for entries inside an OLE file.
 pub struct OLEIterator<'a> {

@@ -62,4 +62,8 @@ pub enum Error {
     /// User query an empty entry
     #[error("Empty entry")]
     EmptyEntry,
+
+    /// User query an empty entry
+    #[error("Invalid UTF16 Name")]
+    UTF16Error,
 }
